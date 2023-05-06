@@ -8,7 +8,7 @@ desert = [Image('images/tiles/sand.png')]
 swamp = [Image('images/tiles/swamp1.png'), Image('images/tiles/swamp2.png'), Image('images/tiles/swamp2.png')]
 border = [Image('images/tiles/brick.png')]
 winter = [Image('images/tiles/snow1.png'), Image('images/tiles/snow2.png')]
-finish = [Image('images/crate_11.png')]
+finish = [Image('images/tiles/crate_11.png')]
 
 crate_img = Image('images/tiles/crate_24.png')          # тайлы и ресурсы
 fuel_img = Image('images/tiles/fuel.png')
@@ -40,8 +40,8 @@ car_desert_swamp_img = Image('images/car/desert-swamp.png')
 car_swamp_winter_img = Image('images/car/swamp-winter.png')
 car_ultimate_img = Image('images/car/ultimate.png')
 
-menu_briks_img = Image('images/block_06.png', size=(128, 128))  # хаб
-menu_ground_img = Image('images/crate_11.png', size=(128, 128))
+menu_briks_img = Image('images/tiles/block_06.png', size=(128, 128))  # хаб
+menu_ground_img = Image('images/tiles/crate_11.png', size=(128, 128))
 upgrade_1_img = Image('images/UI/desert.png', size=(108, 72))
 upgrade_2_img = Image('images/UI/swamp.png', size=(108, 72))
 upgrade_3_img = Image('images/UI/winter.png', size=(108, 72))
