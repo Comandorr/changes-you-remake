@@ -7,20 +7,23 @@ SCREEN_HEIGHT = 600
 
 
 class Player(arcade.AnimatedTimeBasedSprite):
+	def __init__(self, filename):
+		global g_scale
+		super().__init__(filename, scale = g_scale)
 	def setup(self):
-		shadow_texture = arcade.make_soft_circle_texture(72, (100, 100, 100))
-		self.shadow = arcade.Sprite('images/other/shadow.png', scale=2.5)
+		global SCREEN_WIDTH, SCREEN_HEIGHT, g_scale
+		self.shadow = arcade.Sprite('images/other/shadow.png', scale=2.5*g_scale)
 		self.frames = [car1, car2]
-		self.speed = 4
+		self.speed = 4*g_scale
 		self.center_x = SCREEN_WIDTH/6
 		self.center_y = SCREEN_HEIGHT/2
-		self.change_x = 7
+		self.change_x = 7*g_scale
 
 	def update(self):
 		global x_start
 		self.center_x += self.change_x
 		self.center_y += self.change_y
-		
+
 		if self.left < x_start:
 			self.left = x_start
 		elif self.right > x_start+SCREEN_WIDTH - 1:
@@ -45,7 +48,7 @@ class SandParticle(arcade.FadeParticle):
 	def __init__(self):
 		global x_start
 		super().__init__(sand_texture, (-15, 0.0),
-		lifetime=1,
+		lifetime=SCREEN_WIDTH/800,
 		center_xy=(SCREEN_WIDTH+x_start, random.randint(0, SCREEN_HEIGHT)),
 		end_alpha=100)
 
@@ -54,7 +57,7 @@ class SnowParticle(arcade.FadeParticle):
 	def __init__(self):
 		global x_start
 		super().__init__(snow_texture, (-15, 0.0),
-		lifetime=1,
+		lifetime=SCREEN_WIDTH/800,
 		center_xy=(SCREEN_WIDTH+x_start, random.randint(0, SCREEN_HEIGHT)),
 		end_alpha=100)
 
@@ -63,7 +66,7 @@ class RainParticle(arcade.FadeParticle):
 	def __init__(self):
 		global x_start
 		super().__init__(rain_texture, (-7, -10),
-		lifetime=1,
+		lifetime=SCREEN_WIDTH/600,
 		center_xy=(random.randint(0, SCREEN_WIDTH*2) + x_start, SCREEN_HEIGHT),
 		angle = -20, end_alpha=50)
 
@@ -94,9 +97,20 @@ class RainEmitter(arcade.Emitter):
 
 class Game(arcade.Window):
 	def __init__(self):
-		super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT)
+		global SCREEN_WIDTH, SCREEN_HEIGHT
+		super().__init__(fullscreen=True)
+		#super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT)
+		SCREEN_WIDTH, SCREEN_HEIGHT =  arcade.get_display_size()
+		self.player = None
+		self.player_list = None
+		self.map = None
+		self.keys = None
+		self.location = None
+		global g_scale
+		g_scale = SCREEN_WIDTH/1080
 
 	def setup(self):
+		global g_scale
 		self.keys = {'w':False, 's':False, 'a':False, 'd':False}
 		self.player_list = arcade.SpriteList()
 		self.player = Player('images/car/car.png')
@@ -111,11 +125,18 @@ class Game(arcade.Window):
 		self.emitter = SandEmitter()
 		
 		self.camera = arcade.Camera()
-		self.kilometers_text = arcade.Text(str(self.camera.position[0]), 100+SCREEN_WIDTH-50, SCREEN_HEIGHT-100, (0,0,0), 20)
-		self.location_text = arcade.Text(str(self.location), 100, SCREEN_HEIGHT-100, (0,0,0), 20)
+		self.camera.position = pyglet.math.Vec2(SCREEN_WIDTH/2, 0)
+		self.kilometers_text = arcade.Text(str(self.camera.position[0]), SCREEN_WIDTH, SCREEN_HEIGHT-100, (0,0,0), 20*g_scale)
+		self.location_text = arcade.Text(str(self.location), 50, SCREEN_HEIGHT-100, (0,0,0), 20*g_scale)
+
+		self.music = arcade.Sound('sounds/the_sound.mp3')
+		self.media_player = self.music.play(loop=True)
+		self.music.set_volume(0, self.media_player)
+		# the_sound
+		# paint
 
 	def generate_locations(self):
-		self.way = ['desert', 'winter', 'swamp']
+		self.way = ['desert', 'desert', 'winter', 'swamp']
 		for i in range(len(self.way)):
 			w = self.way[i]
 			for x in range((i*7500), 7500 + (i*7500), 64):
@@ -131,7 +152,6 @@ class Game(arcade.Window):
 					hit_box_algorithm = None))
 
 	def on_draw(self):
-		self.camera.use()
 		self.clear()
 		self.map.draw()
 		self.player_list.draw()
@@ -141,7 +161,8 @@ class Game(arcade.Window):
 		
 		
 	def update_player_speed(self):
-		self.player.change_x = 7
+		global g_scale
+		self.player.change_x = 7*g_scale
 		self.player.change_y = 0
 		if self.keys['w'] and not self.keys['s']:
 			self.player.change_y = self.player.speed/2
@@ -153,15 +174,17 @@ class Game(arcade.Window):
 			self.player.change_x = 7-self.player.speed
 
 	def on_update(self, delta_time):
-		self.camera.goal_position = self.camera.position + pyglet.math.Vec2(7, 0)
-		global x_start
+		global x_start, g_scale
+		self.camera.use()
 		x_start = self.camera.position[0]
 		self.player_list.update()
 		self.emitter.update()
+		self.camera.goal_position = self.camera.position + pyglet.math.Vec2(7*g_scale, 0)
+		
 		self.location = self.way[int(x_start//7500)]
-		self.kilometers_text.position = (x_start + SCREEN_WIDTH-75, SCREEN_HEIGHT-50)
+		self.kilometers_text.position = (x_start + SCREEN_WIDTH-100, SCREEN_HEIGHT-50)
 		self.kilometers_text.text = str(int(x_start//10))
-		self.location_text.position = (x_start + 100, SCREEN_HEIGHT-50)
+		self.location_text.position = (x_start + 25, SCREEN_HEIGHT-50)
 		if self.location_text.text != self.location:
 			self.location_text.text = self.location
 			if self.location == 'desert':

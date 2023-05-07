@@ -1,360 +1,198 @@
-"""
-Particle Fireworks
-
-Use a fireworks display to demonstrate "real-world" uses of Emitters and Particles
-
-If Python and Arcade are installed, this example can be run from the command line with:
-python -m arcade.examples.particle_fireworks
-"""
 import arcade
-from arcade import Point, Vector
-from arcade.utils import _Vec2  # bring in "private" class
-import os
-import random
-import pyglet
-
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
-SCREEN_TITLE = "Particle based fireworks"
-LAUNCH_INTERVAL_MIN = 1.5
-LAUNCH_INTERVAL_MAX = 2.5
-TEXTURE = "images/pool_cue_ball.png"
-RAINBOW_COLORS = (
-    arcade.color.ELECTRIC_CRIMSON,
-    arcade.color.FLUORESCENT_ORANGE,
-    arcade.color.ELECTRIC_YELLOW,
-    arcade.color.ELECTRIC_GREEN,
-    arcade.color.ELECTRIC_CYAN,
-    arcade.color.MEDIUM_ELECTRIC_BLUE,
-    arcade.color.ELECTRIC_INDIGO,
-    arcade.color.ELECTRIC_PURPLE,
-)
-SPARK_TEXTURES = [arcade.make_circle_texture(8, clr) for clr in RAINBOW_COLORS]
-SPARK_PAIRS = [
-    [SPARK_TEXTURES[0], SPARK_TEXTURES[3]],
-    [SPARK_TEXTURES[1], SPARK_TEXTURES[5]],
-    [SPARK_TEXTURES[7], SPARK_TEXTURES[2]],
-]
-ROCKET_SMOKE_TEXTURE = arcade.make_soft_circle_texture(15, arcade.color.GRAY)
-PUFF_TEXTURE = arcade.make_soft_circle_texture(80, (40, 40, 40))
-FLASH_TEXTURE = arcade.make_soft_circle_texture(70, (128, 128, 90))
-CLOUD_TEXTURES = [
-    arcade.make_soft_circle_texture(50, arcade.color.WHITE),
-    arcade.make_soft_circle_texture(50, arcade.color.LIGHT_GRAY),
-    arcade.make_soft_circle_texture(50, arcade.color.LIGHT_BLUE),
-]
-STAR_TEXTURES = [
-    arcade.make_soft_circle_texture(8, arcade.color.WHITE),
-    arcade.make_soft_circle_texture(8, arcade.color.PASTEL_YELLOW),
-]
-SPINNER_HEIGHT = 75
+import arcade.gui
 
 
-def make_spinner():
-    spinner = arcade.Emitter(
-        center_xy=(SCREEN_WIDTH / 2, SPINNER_HEIGHT - 5),
-        emit_controller=arcade.EmitterIntervalWithTime(0.025, 2.0),
-        particle_factory=lambda emitter: arcade.FadeParticle(
-            filename_or_texture=random.choice(STAR_TEXTURES),
-            change_xy=(0, 6.0),
-            lifetime=0.2
+class MyView(arcade.View):
+    def __init__(self, my_window: arcade.Window):
+        super().__init__(my_window)
+
+        self.media_player = None
+        self.paused = True
+        self.songs = [":resources:music/funkyrobot.mp3",
+                      ":resources:music/1918.mp3"]
+        self.cur_song_index = 0
+
+        self.my_music = arcade.load_sound(self.songs[self.cur_song_index])
+
+        # This creates a "manager" for all our UI elements
+        self.ui_manager = arcade.gui.UIManager(self.window)
+
+        box = arcade.gui.UIBoxLayout(vertical=False)
+
+        # --- Start button
+        normal_texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/"
+                                             "sound_off.png")
+        hover_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/"
+                                            "sound_off.png")
+        press_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/"
+                                            "sound_off.png")
+
+        # Create our button
+        self.start_button = arcade.gui.UITextureButton(
+            texture=normal_texture,
+            texture_hovered=hover_texture,
+            texture_pressed=press_texture,
         )
-    )
-    spinner.change_angle = 16.28
-    return spinner
 
+        # Map that button's on_click method to this view's on_button_click method.
+        self.start_button.on_click = self.start_button_clicked  # type: ignore
 
-def make_rocket(emit_done_cb):
-    """Emitter that displays the smoke trail as the firework shell climbs into the sky"""
-    rocket = RocketEmitter(
-        center_xy=(random.uniform(100, SCREEN_WIDTH - 100), 25),
-        emit_controller=arcade.EmitterIntervalWithTime(0.04, 2.0),
-        particle_factory=lambda emitter: arcade.FadeParticle(
-            filename_or_texture=ROCKET_SMOKE_TEXTURE,
-            change_xy=arcade.rand_in_circle((0.0, 0.0), 0.08),
-            scale=0.5,
-            lifetime=random.uniform(1.0, 1.5),
-            start_alpha=100,
-            end_alpha=0,
-            mutation_callback=rocket_smoke_mutator
-        ),
-        emit_done_cb=emit_done_cb
-    )
-    rocket.change_x = random.uniform(-1.0, 1.0)
-    rocket.change_y = random.uniform(5.0, 7.25)
-    return rocket
+        # Add in our element.
+        box.add(self.start_button)
 
+        # --- Down button
+        press_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/down.png")
+        normal_texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/down.png")
+        hover_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/down.png")
 
-def make_flash(prev_emitter):
-    """Return emitter that displays the brief flash when a firework shell explodes"""
-    return arcade.Emitter(
-        center_xy=prev_emitter.get_pos(),
-        emit_controller=arcade.EmitBurst(3),
-        particle_factory=lambda emitter: arcade.FadeParticle(
-            filename_or_texture=FLASH_TEXTURE,
-            change_xy=arcade.rand_in_circle((0.0, 0.0), 3.5),
-            lifetime=0.15
+        # Create our button
+        self.down_button = arcade.gui.UITextureButton(
+            texture=normal_texture,
+            texture_hovered=hover_texture,
+            texture_pressed=press_texture,
         )
-    )
 
+        # Map that button's on_click method to this view's on_button_click method.
+        self.down_button.on_click = self.volume_down  # type: ignore
+        self.down_button.scale(0.5)
 
-def make_puff(prev_emitter):
-    """Return emitter that generates the subtle smoke cloud left after a firework shell explodes"""
-    return arcade.Emitter(
-        center_xy=prev_emitter.get_pos(),
-        emit_controller=arcade.EmitBurst(4),
-        particle_factory=lambda emitter: arcade.FadeParticle(
-            filename_or_texture=PUFF_TEXTURE,
-            change_xy=(_Vec2(arcade.rand_in_circle((0.0, 0.0), 0.4)) + _Vec2(0.3, 0.0)).as_tuple(),
-            lifetime=4.0
+        # Add in our element.
+        box.add(self.down_button)
+
+        # --- Up button
+        press_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/up.png")
+        normal_texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/up.png")
+        hover_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/up.png")
+
+        # Create our button
+        self.up_button = arcade.gui.UITextureButton(
+            texture=normal_texture,
+            texture_hovered=hover_texture,
+            texture_pressed=press_texture,
         )
-    )
 
+        # Map that button's on_click method to this view's on_button_click method.
+        self.up_button.on_click = self.volume_up  # type: ignore
+        self.up_button.scale(0.5)
 
-class AnimatedAlphaParticle(arcade.LifetimeParticle):
-    """A custom particle that animates between three different alpha levels"""
+        # Add in our element.
+        box.add(self.up_button)
 
-    def __init__(
-            self,
-            filename_or_texture: arcade.FilenameOrTexture,
-            change_xy: Vector,
-            start_alpha: int = 0,
-            duration1: float = 1.0,
-            mid_alpha: int = 255,
-            duration2: float = 1.0,
-            end_alpha: int = 0,
-            center_xy: Point = (0.0, 0.0),
-            angle: float = 0,
-            change_angle: float = 0,
-            scale: float = 1.0,
-            mutation_callback=None,
-    ):
-        super().__init__(filename_or_texture,
-                         change_xy,
-                         duration1 + duration2,
-                         center_xy,
-                         angle,
-                         change_angle,
-                         scale,
-                         start_alpha,
-                         mutation_callback)
-        self.start_alpha = start_alpha
-        self.in_duration = duration1
-        self.mid_alpha = mid_alpha
-        self.out_duration = duration2
-        self.end_alpha = end_alpha
+        # --- Right button
+        press_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/right.png")
+        normal_texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/right.png")
+        hover_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/right.png")
 
-    def update(self):
-        super().update()
-        if self.lifetime_elapsed <= self.in_duration:
-            u = self.lifetime_elapsed / self.in_duration
-            self.alpha = arcade.clamp(arcade.lerp(self.start_alpha, self.mid_alpha, u), 0, 255)
-        else:
-            u = (self.lifetime_elapsed - self.in_duration) / self.out_duration
-            self.alpha = arcade.clamp(arcade.lerp(self.mid_alpha, self.end_alpha, u), 0, 255)
-
-
-class RocketEmitter(arcade.Emitter):
-    """Custom emitter class to add gravity to the emitter to represent gravity on the firework shell"""
-
-    def update(self):
-        super().update()
-        # gravity
-        self.change_y += -0.05
-
-
-class FireworksApp(arcade.Window):
-    def __init__(self):
-        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
-
-        # Set the working directory (where we expect to find files) to the same
-        # directory this .py file is in. You can leave this out of your own
-        # code, but it is needed to easily run the examples using "python -m"
-        # as mentioned at the top of this program.
-        file_path = os.path.dirname(os.path.abspath(__file__))
-        os.chdir(file_path)
-
-        arcade.set_background_color(arcade.color.BLACK)
-        self.emitters = []
-
-        self.launch_firework(0)
-        arcade.schedule(self.launch_spinner, 4.0)
-
-        stars = arcade.Emitter(
-            center_xy=(0.0, 0.0),
-            emit_controller=arcade.EmitMaintainCount(20),
-            particle_factory=lambda emitter: AnimatedAlphaParticle(
-                filename_or_texture=random.choice(STAR_TEXTURES),
-                change_xy=(0.0, 0.0),
-                start_alpha=0,
-                duration1=random.uniform(2.0, 6.0),
-                mid_alpha=128,
-                duration2=random.uniform(2.0, 6.0),
-                end_alpha=0,
-                center_xy=arcade.rand_in_rect((0.0, 0.0), SCREEN_WIDTH, SCREEN_HEIGHT)
-            )
+        # Create our button
+        self.right_button = arcade.gui.UITextureButton(
+            texture=normal_texture,
+            texture_hovered=hover_texture,
+            texture_pressed=press_texture,
         )
-        self.emitters.append(stars)
 
-        self.cloud = arcade.Emitter(
-            center_xy=(50, 500),
-            change_xy=(0.15, 0),
-            emit_controller=arcade.EmitMaintainCount(60),
-            particle_factory=lambda emitter: AnimatedAlphaParticle(
-                filename_or_texture=random.choice(CLOUD_TEXTURES),
-                change_xy=(_Vec2(arcade.rand_in_circle((0.0, 0.0), 0.04)) + _Vec2(0.1, 0)).as_tuple(),
-                start_alpha=0,
-                duration1=random.uniform(5.0, 10.0),
-                mid_alpha=255,
-                duration2=random.uniform(5.0, 10.0),
-                end_alpha=0,
-                center_xy=arcade.rand_in_circle((0.0, 0.0), 50)
-            )
-        )
-        self.emitters.append(self.cloud)
+        # Map that button's on_click method to this view's on_button_click method.
+        self.right_button.on_click = self.forward  # type: ignore
+        self.right_button.scale(0.5)
 
-    def launch_firework(self, delta_time):
-        launchers = (
-            self.launch_random_firework,
-            self.launch_ringed_firework,
-            self.launch_sparkle_firework,
-        )
-        random.choice(launchers)(delta_time)
-        pyglet.clock.schedule_once(self.launch_firework, random.uniform(LAUNCH_INTERVAL_MIN, LAUNCH_INTERVAL_MAX))
+        # Add in our element.
+        box.add(self.right_button)
 
-    def launch_random_firework(self, _delta_time):
-        """Simple firework that explodes in a random color"""
-        rocket = make_rocket(self.explode_firework)
-        self.emitters.append(rocket)
+        # Place buttons in the center of the screen using an UIAnchorWidget with default values
+        self.ui_manager.add(arcade.gui.UIAnchorWidget(child=box))
 
-    def launch_ringed_firework(self, _delta_time):
-        """"Firework that has a basic explosion and a ring of sparks of a different color"""
-        rocket = make_rocket(self.explode_ringed_firework)
-        self.emitters.append(rocket)
+    def music_over(self):
+        self.media_player.pop_handlers()
+        self.media_player = None
+        self.sound_button_off()
+        self.cur_song_index += 1
+        if self.cur_song_index >= len(self.songs):
+            self.cur_song_index = 0
+        self.my_music = arcade.load_sound(self.songs[self.cur_song_index])
+        self.media_player = self.my_music.play()
+        self.media_player.push_handlers(on_eos=self.music_over)
 
-    def launch_sparkle_firework(self, _delta_time):
-        """Firework which has sparks that sparkle"""
-        rocket = make_rocket(self.explode_sparkle_firework)
-        self.emitters.append(rocket)
+    def volume_down(self, *_):
+        if self.media_player and self.media_player.volume > 0.2:
+            self.media_player.volume -= 0.2
 
-    def launch_spinner(self, _delta_time):
-        """Start the spinner that throws sparks"""
-        spinner1 = make_spinner()
-        spinner2 = make_spinner()
-        spinner2.angle = 180
-        self.emitters.append(spinner1)
-        self.emitters.append(spinner2)
+    def volume_up(self, *_):
+        if self.media_player and self.media_player.volume < 1.0:
+            self.media_player.volume += 0.2
 
-    def explode_firework(self, prev_emitter):
-        """Actions that happen when a firework shell explodes, resulting in a typical firework"""
-        self.emitters.append(make_puff(prev_emitter))
-        self.emitters.append(make_flash(prev_emitter))
+    def forward(self, *_):
+        skip_time = 10
 
-        spark_texture = random.choice(SPARK_TEXTURES)
-        sparks = arcade.Emitter(
-            center_xy=prev_emitter.get_pos(),
-            emit_controller=arcade.EmitBurst(random.randint(30, 40)),
-            particle_factory=lambda emitter: arcade.FadeParticle(
-                filename_or_texture=spark_texture,
-                change_xy=arcade.rand_in_circle((0.0, 0.0), 9.0),
-                lifetime=random.uniform(0.5, 1.2),
-                mutation_callback=firework_spark_mutator
-            )
-        )
-        self.emitters.append(sparks)
+        if self.media_player and self.media_player.time < self.my_music.get_length() - skip_time:
+            self.media_player.seek(self.media_player.time + 10)
 
-    def explode_ringed_firework(self, prev_emitter):
-        """Actions that happen when a firework shell explodes, resulting in a ringed firework"""
-        self.emitters.append(make_puff(prev_emitter))
-        self.emitters.append(make_flash(prev_emitter))
+    def sound_button_on(self):
+        self.start_button.texture_pressed = \
+            arcade.load_texture(":resources:onscreen_controls/shaded_dark/sound_on.png")
+        self.start_button.texture = \
+            arcade.load_texture(":resources:onscreen_controls/flat_dark/sound_on.png")
+        self.start_button.texture_hovered = \
+            arcade.load_texture(":resources:onscreen_controls/shaded_dark/sound_on.png")
 
-        spark_texture, ring_texture = random.choice(SPARK_PAIRS)
-        sparks = arcade.Emitter(
-            center_xy=prev_emitter.get_pos(),
-            emit_controller=arcade.EmitBurst(25),
-            particle_factory=lambda emitter: arcade.FadeParticle(
-                filename_or_texture=spark_texture,
-                change_xy=arcade.rand_in_circle((0.0, 0.0), 8.0),
-                lifetime=random.uniform(0.55, 0.8),
-                mutation_callback=firework_spark_mutator
-            )
-        )
-        self.emitters.append(sparks)
+    def sound_button_off(self):
+        self.start_button.texture_pressed = \
+            arcade.load_texture(":resources:onscreen_controls/shaded_dark/sound_off.png")
+        self.start_button.texture = \
+            arcade.load_texture(":resources:onscreen_controls/flat_dark/sound_off.png")
+        self.start_button.texture_hovered = \
+            arcade.load_texture(":resources:onscreen_controls/shaded_dark/sound_off.png")
 
-        ring = arcade.Emitter(
-            center_xy=prev_emitter.get_pos(),
-            emit_controller=arcade.EmitBurst(20),
-            particle_factory=lambda emitter: arcade.FadeParticle(
-                filename_or_texture=ring_texture,
-                change_xy=arcade.rand_on_circle((0.0, 0.0), 5.0) + arcade.rand_in_circle((0.0, 0.0), 0.25),
-                lifetime=random.uniform(1.0, 1.6),
-                mutation_callback=firework_spark_mutator
-            )
-        )
-        self.emitters.append(ring)
-
-    def explode_sparkle_firework(self, prev_emitter):
-        """Actions that happen when a firework shell explodes, resulting in a sparkling firework"""
-        self.emitters.append(make_puff(prev_emitter))
-        self.emitters.append(make_flash(prev_emitter))
-
-        spark_texture = random.choice(SPARK_TEXTURES)
-        sparks = arcade.Emitter(
-            center_xy=prev_emitter.get_pos(),
-            emit_controller=arcade.EmitBurst(random.randint(30, 40)),
-            particle_factory=lambda emitter: AnimatedAlphaParticle(
-                filename_or_texture=spark_texture,
-                change_xy=arcade.rand_in_circle((0.0, 0.0), 9.0),
-                start_alpha=255,
-                duration1=random.uniform(0.6, 1.0),
-                mid_alpha=0,
-                duration2=random.uniform(0.1, 0.2),
-                end_alpha=255,
-                mutation_callback=firework_spark_mutator
-            )
-        )
-        self.emitters.append(sparks)
-
-    def update(self, delta_time):
-        # prevent list from being mutated (often by callbacks) while iterating over it
-        emitters_to_update = self.emitters.copy()
-        # update cloud
-        if self.cloud.center_x > SCREEN_WIDTH:
-            self.cloud.center_x = 0
-        # update
-        for e in emitters_to_update:
-            e.update()
-        # remove emitters that can be reaped
-        to_del = [e for e in emitters_to_update if e.can_reap()]
-        for e in to_del:
-            self.emitters.remove(e)
+    def start_button_clicked(self, *_):
+        self.paused = False
+        if not self.media_player:
+            # Play button has been hit, and we need to start playing from the beginning.
+            self.media_player = self.my_music.play()
+            self.media_player.push_handlers(on_eos=self.music_over)
+            self.sound_button_on()
+        elif not self.media_player.playing:
+            # Play button hit, and we need to un-pause our playing.
+            self.media_player.play()
+            self.sound_button_on()
+        elif self.media_player.playing:
+            # We are playing music, so pause.
+            self.media_player.pause()
+            self.sound_button_off()
 
     def on_draw(self):
         self.clear()
-        for e in self.emitters:
-            e.draw()
-        arcade.draw_lrtb_rectangle_filled(0, SCREEN_WIDTH, 25, 0, arcade.color.DARK_GREEN)
-        mid = SCREEN_WIDTH / 2
-        arcade.draw_lrtb_rectangle_filled(mid - 2, mid + 2, SPINNER_HEIGHT, 10, arcade.color.DARK_BROWN)
 
-    def on_key_press(self, key, modifiers):
-        if key == arcade.key.ESCAPE:
-            arcade.close_window()
+        # This draws our UI elements
+        self.ui_manager.draw()
+        arcade.draw_text("Music Demo",
+                         start_x=0, start_y=self.window.height - 55,
+                         width=self.window.width,
+                         font_size=40,
+                         align="center",
+                         color=arcade.color.BLACK)
 
+        if self.media_player:
+            seconds = self.media_player.time
+            minutes = int(seconds // 60)
+            seconds = int(seconds % 60)
+            arcade.draw_text(f"Time: {minutes}:{seconds:02}",
+                             start_x=10, start_y=10, color=arcade.color.BLACK, font_size=24)
+            volume = self.media_player.volume
+            arcade.draw_text(f"Volume: {volume:3.1f}",
+                             start_x=10, start_y=50, color=arcade.color.BLACK, font_size=24)
 
-def firework_spark_mutator(particle: arcade.FadeParticle):
-    """mutation_callback shared by all fireworks sparks"""
-    # gravity
-    particle.change_y += -0.03
-    # drag
-    particle.change_x *= 0.92
-    particle.change_y *= 0.92
+    def on_show_view(self):
+        arcade.set_background_color(arcade.color.ALMOND)
 
+        # Registers handlers for GUI button clicks, etc.
+        # We don't really use them in this example.
+        self.ui_manager.enable()
 
-def rocket_smoke_mutator(particle: arcade.LifetimeParticle):
-    particle.scale = arcade.lerp(0.5, 3.0, particle.lifetime_elapsed / particle.lifetime_original)
+    def on_hide_view(self):
+        # This unregisters the manager's UI handlers,
+        # Handlers respond to GUI button clicks, etc.
+        self.ui_manager.disable()
 
 
 if __name__ == "__main__":
-    app = FireworksApp()
+    window = arcade.Window(title="Arcade Music Control Demo")
+    window.show_view(MyView(window))
     arcade.run()

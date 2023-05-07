@@ -51,6 +51,7 @@ button_rect_img = Image('images/UI/environment_06.png', size=(136, 136))
 
 music = mixer.Channel(1)
 paint_it_black = mixer.Sound('sounds/paint.mp3')
+#paint_it_black = mixer.Sound('sounds/the_sound.mp3')
 #paint_it_black = mixer.Sound('sounds/naruto.mp3')
 
 scene_car = Group()
