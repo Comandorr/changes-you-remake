@@ -14,17 +14,16 @@ class Player(arcade.AnimatedTimeBasedSprite):
 		global SCREEN_WIDTH, SCREEN_HEIGHT, g_scale
 		self.shadow = arcade.Sprite('images/other/shadow.png', scale=2.5*g_scale)
 		self.frames = [car1, car2]
-		self.speed = 4*g_scale
+		self.speed = 2*g_scale
 		self.center_x = -self.width
 		self.center_y = SCREEN_HEIGHT/2
-		self.change_x = 8*g_scale
+		self.change_x = 6*g_scale
 
 	def update(self):
 		global x_start
 		self.center_x += self.change_x
 		self.center_y += self.change_y
 
-		
 		self.shadow.center_x = self.center_x
 		self.shadow.center_y = self.center_y-self.height/3
 		self.update_animation()
@@ -42,7 +41,7 @@ class Enemy(arcade.AnimatedTimeBasedSprite):
 		self.speed = 4
 		self.center_x = -self.width
 		self.center_y = center_y
-		self.change_x = 7.5*g_scale
+		self.change_x = 5.5*g_scale
 		self.time_since_last_firing = 0.0
 		self.time_between_firing = 0.2
 		self.shoot = False
@@ -69,7 +68,7 @@ class Enemy(arcade.AnimatedTimeBasedSprite):
 		
 
 
-sand_texture = arcade.Texture.create_filled('sand', [16,4], (255, 127, 39))
+sand_texture = arcade.Texture.create_filled('sand', [16,5], (255, 127, 39))
 rain_texture = arcade.Texture.create_filled('rain', [6,24], (0, 162, 232))
 snow_texture = arcade.Texture.create_filled('snow', [16,4], (173, 173, 173))
 
@@ -82,8 +81,8 @@ e2 = arcade.AnimationKeyframe(1, 166, arcade.load_texture('images/enemies/rounde
 class SandParticle(arcade.FadeParticle):
 	def __init__(self):
 		global x_start
-		super().__init__(sand_texture, (-15, 0.0),
-		lifetime=SCREEN_WIDTH/800,
+		super().__init__(sand_texture, (-25, 0.0),
+		lifetime= 0.75 + random.random(),
 		center_xy=(SCREEN_WIDTH+x_start, random.randint(0, SCREEN_HEIGHT)),
 		end_alpha=100)
 
@@ -110,7 +109,7 @@ class SandEmitter(arcade.Emitter):
 	def __init__(self):
 		super().__init__(
             center_xy=(0.0, 0.0),
-            emit_controller=arcade.EmitInterval(0.0075),
+            emit_controller=arcade.EmitInterval(0.005),
             particle_factory=lambda emitter: SandParticle())
 
 
@@ -247,16 +246,16 @@ class Game(arcade.Window):
 		
 	def update_player_speed(self):
 		global g_scale, x_start
-		self.player.change_x = 7*g_scale
+		self.player.change_x = 5*g_scale
 		self.player.change_y = 0
 		if self.keys['w'] and not self.keys['s']:
 			self.player.change_y = self.player.speed/2
 		if self.keys['s'] and not self.keys['w']:
 			self.player.change_y = -self.player.speed/2
 		if self.keys['d'] and not self.keys['a']:
-			self.player.change_x = 7*g_scale + self.player.speed
+			self.player.change_x = 5*g_scale + self.player.speed
 		if self.keys['a'] and not self.keys['d']:
-			self.player.change_x = 7*g_scale-self.player.speed
+			self.player.change_x = 5*g_scale-self.player.speed
 		if self.player.left < x_start:
 			self.player.left = x_start
 		elif self.player.right > x_start+SCREEN_WIDTH - 1:
@@ -288,24 +287,24 @@ class Game(arcade.Window):
 				self.player_list.update()
 				if self.player.center_x >= x_start+SCREEN_WIDTH/3:
 					self.player.center_x = x_start+SCREEN_WIDTH/3
-					self.player.change_x = 7*g_scale
+					self.player.change_x = 5*g_scale
 			else:
 				self.player.center_x = x_start-self.player.width
 
 			if self.time < 6.5:
 				self.enemy1.center_x = x_start-self.enemy1.width
 				self.enemy2.center_x = x_start-self.enemy2.width
-			if self.time >= 6.5 and self.time < 13.5:
+			if self.time >= 6.5 and self.time < 13.6:
 				self.enemies.update()
 				if self.player.center_x - self.enemy1.center_x <= 250*g_scale:
-					self.enemy1.change_x = 7*g_scale
-					self.enemy2.change_x = 7*g_scale
-			elif self.time >= 13.5:
+					self.enemy1.change_x = 5*g_scale
+					self.enemy2.change_x = 5*g_scale
+			elif self.time >= 13.6:
 				self.enemies.update()
 				for e in self.enemies:
 					e.shoot = True
-				self.enemy1.change_x = 8*g_scale
-				self.enemy2.change_x = 6.5*g_scale
+				self.enemy1.change_x = 5*g_scale
+				self.enemy2.change_x = 4.5*g_scale
 				self.enemy1.change_y = 1.5*g_scale
 				self.enemy2.change_y = -1.25*g_scale
 				self.cutscene = False
@@ -318,7 +317,7 @@ class Game(arcade.Window):
 				bullet.remove_from_sprite_lists()
 		self.bullet_list.update()
 		
-		self.camera.goal_position = self.camera.position + pyglet.math.Vec2(7*g_scale, 0)
+		self.camera.goal_position = self.camera.position + pyglet.math.Vec2(5*g_scale, 0)
 
 		self.location = self.way[int(x_start//15000)]
 		self.kilometers_text.position = (x_start + SCREEN_WIDTH-150, SCREEN_HEIGHT-50)
