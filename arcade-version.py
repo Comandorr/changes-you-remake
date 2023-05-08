@@ -1,71 +1,33 @@
 import arcade
 import random
 import pyglet
+from car_class import Car
+from player_class import Player
+from enemy_class import Enemy
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 
 
-class Player(arcade.AnimatedTimeBasedSprite):
-	def __init__(self, filename):
-		global g_scale
-		super().__init__(filename, scale = g_scale)
-	def setup(self):
-		global SCREEN_WIDTH, SCREEN_HEIGHT, g_scale
-		self.shadow = arcade.Sprite('images/other/shadow.png', scale=2.5*g_scale)
-		self.frames = [car1, car2]
-		self.speed = 3.5*g_scale
-		self.center_x = -self.width
-		self.center_y = SCREEN_HEIGHT/2
-		self.change_x = 6*g_scale
-
-	def update(self):
-		global x_start
-		self.center_x += self.change_x
-		self.center_y += self.change_y
-
-		self.shadow.center_x = self.center_x
-		self.shadow.center_y = self.center_y-self.height/3
-		self.update_animation()
-		
-
-class Enemy(arcade.AnimatedTimeBasedSprite):
-	def __init__(self, filename, bullet_list):
-		global g_scale
-		self.bullet_list = bullet_list
-		super().__init__(filename, scale = g_scale)
-	def setup(self, center_y):
-		global SCREEN_WIDTH, SCREEN_HEIGHT, g_scale
-		self.shadow = arcade.Sprite('images/other/shadow.png', scale=2.5*g_scale)
-		self.frames = [e1, e2]
-		self.speed = 4
-		self.center_x = -self.width
-		self.center_y = center_y
-		self.change_x = 5.5*g_scale
-		self.time_since_last_firing = 0.0
-		self.time_between_firing = 0.2
-		self.shoot = False
-
-	def update(self, delta_time: float = 1 / 60):
-		global x_start, g_scale
-		self.speed *= g_scale
-		self.center_x += self.change_x
-		self.center_y += self.change_y
-
-		self.shadow.center_x = self.center_x
-		self.shadow.center_y = self.center_y-self.height/3
-		self.update_animation()
-		self.time_since_last_firing += delta_time
-		
-		if self.shoot and self.time_since_last_firing >= self.time_between_firing:
-			self.time_since_last_firing = 0
-			bullet = arcade.Sprite("images/other/bullet.png", scale = g_scale*1.5)
-			bullet.center_x = self.right
-			bullet.center_y = self.center_y
-			bullet.change_x = 50*g_scale
-			self.bullet_list.append(bullet)
-
-		
+# ENEMY UDATE OLD
+#	def update(self, delta_time: float = 1 / 60):
+#		global x_start, g_scale
+#		self.speed *= g_scale
+#		self.center_x += self.change_x
+#		self.center_y += self.change_y
+#
+#		self.shadow.center_x = self.center_x
+#		self.shadow.center_y = self.center_y-self.height/3
+#		self.update_animation()
+#		self.time_since_last_firing += delta_time
+#		
+#		if self.shoot and self.time_since_last_firing >= self.time_between_firing:
+#			self.time_since_last_firing = 0
+#			bullet = arcade.Sprite("images/other/bullet.png", scale = g_scale*1.5)
+#			bullet.center_x = self.right
+#			bullet.center_y = self.center_y
+#			bullet.change_x = 50*g_scale
+#			self.bullet_list.append(bullet)
 
 
 sand_texture = arcade.Texture.create_filled('sand', [16,5], (255, 127, 39))
@@ -77,27 +39,18 @@ car2 = arcade.AnimationKeyframe(1, 166, arcade.load_texture('images/arcade/car2.
 e1 = arcade.AnimationKeyframe(0, 166, arcade.load_texture('images/enemies/rounded_yellow.png'))
 e2 = arcade.AnimationKeyframe(1, 166, arcade.load_texture('images/enemies/rounded_yellow2.png'))
 
-#tire_texture = arcade.Texture.create_filled('tire', [4,4], (0,0,0, 128))
 tire_texture = arcade.make_soft_square_texture(8, (0,0,0), center_alpha = 50, outer_alpha = 50)
 
 class TireParticle(arcade.FadeParticle):
-	def __init__(self, p):
+	def __init__(self, p, sdvig):
 		super().__init__(tire_texture, change_xy = (0,0),
 		lifetime= 2,
 		center_xy=(p.player.left, p.player.center_y-7),
 		end_alpha=100)
 
-class TireParticle2(arcade.FadeParticle):
-	def __init__(self, p):
-		super().__init__(tire_texture, change_xy = (0,0),
-		lifetime= 2,
-		center_xy=(p.player.left, p.player.center_y-17),
-		end_alpha=100)
 
 def new_tire(player):
-	return TireParticle(player)
-def new_tire2(player):
-	return TireParticle2(player)
+	return TireParticle(player, sdgvig)
 
 
 class SandParticle(arcade.FadeParticle):
@@ -184,13 +137,25 @@ class Game(arcade.Window):
 	def setup(self):
 		global g_scale
 		self.cutscene = True
-
+		
 		self.keys = {'w':False, 's':False, 'a':False, 'd':False}
+		self.bullet_list = arcade.SpriteList()
 		self.player_list = arcade.SpriteList()
-		self.player = Player('images/car/car.png')
-		self.player.setup()
+		self.player = Player(self, [car1, car2], g_scale, self.bullet_list)
+		#self.player.setup()
 		self.player_list.append(self.player.shadow)
 		self.player_list.append(self.player)
+
+		self.enemies = arcade.SpriteList()
+		self.enemy1 = Enemy(self, [e1, e2], g_scale, self.bullet_list, self.height*0.25)
+		#self.enemy1.setup(SCREEN_HEIGHT/4)
+		self.enemy2 = Enemy(self, [e1, e2], g_scale, self.bullet_list, self.height*0.75)
+		#self.enemy2.setup(SCREEN_HEIGHT/4*3)
+		self.enemies.append(self.enemy1.shadow)
+		self.enemies.append(self.enemy1)
+		self.enemies.append(self.enemy2.shadow)
+		self.enemies.append(self.enemy2)
+
 		self.location = 'desert'
 		self.way = ['desert']
 
@@ -212,16 +177,8 @@ class Game(arcade.Window):
 		self.music.set_volume(1, self.media_player)
 		# the_sound
 		# paint
-		self.bullet_list = arcade.SpriteList()
-		self.enemies = arcade.SpriteList()
-		self.enemy1 = Enemy('images/enemies/rounded_yellow.png', self.bullet_list)
-		self.enemy1.setup(SCREEN_HEIGHT/4)
-		self.enemy2 = Enemy('images/enemies/rounded_yellow.png', self.bullet_list)
-		self.enemy2.setup(SCREEN_HEIGHT/4*3)
-		self.enemies.append(self.enemy1.shadow)
-		self.enemies.append(self.enemy1)
-		self.enemies.append(self.enemy2.shadow)
-		self.enemies.append(self.enemy2)
+		
+		
 		
 		self.black_texture = arcade.Texture.create_filled('black', [SCREEN_WIDTH, SCREEN_HEIGHT], (0, 0, 0))
 		self.black_texture.alpha = 255
@@ -232,8 +189,8 @@ class Game(arcade.Window):
 		self.explosion2 = arcade.load_animated_gif('images/boom.gif')
 		self.explosion2.scale = 0.1
 
-		self.tire_emitter = TireEmitter(self.player)
-		self.tire_emitter2 = TireEmitter2(self.player)
+		#self.tire_emitter = TireEmitter(self.player)
+		#self.tire_emitter2 = TireEmitter2(self.player)
 
 	def generate_locations(self):
 		self.way = ['desert', 'desert', 'desert', 'winter', 'swamp']
@@ -259,8 +216,8 @@ class Game(arcade.Window):
 		
 		self.enemies.draw()
 		self.emitter.draw()
-		self.tire_emitter.draw()
-		self.tire_emitter2.draw()
+		#self.tire_emitter.draw()
+		#self.tire_emitter2.draw()
 		self.bullet_list.draw()
 		#self.kilometers_text.draw()
 		#self.location_text.draw()
@@ -316,8 +273,8 @@ class Game(arcade.Window):
 
 		x_start = self.camera.position[0]
 		self.emitter.update()
-		self.tire_emitter.update()
-		self.tire_emitter2.update()
+		#self.tire_emitter.update()
+		#self.tire_emitter2.update()
 		if self.cutscene:
 			if self.time >= 0:
 				self.player_list.update()
