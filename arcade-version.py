@@ -14,7 +14,7 @@ class Player(arcade.AnimatedTimeBasedSprite):
 		global SCREEN_WIDTH, SCREEN_HEIGHT, g_scale
 		self.shadow = arcade.Sprite('images/other/shadow.png', scale=2.5*g_scale)
 		self.frames = [car1, car2]
-		self.speed = 2*g_scale
+		self.speed = 3.5*g_scale
 		self.center_x = -self.width
 		self.center_y = SCREEN_HEIGHT/2
 		self.change_x = 6*g_scale
@@ -59,10 +59,10 @@ class Enemy(arcade.AnimatedTimeBasedSprite):
 		
 		if self.shoot and self.time_since_last_firing >= self.time_between_firing:
 			self.time_since_last_firing = 0
-			bullet = arcade.Sprite("images/other/bullet.png", scale = g_scale*2)
+			bullet = arcade.Sprite("images/other/bullet.png", scale = g_scale*1.5)
 			bullet.center_x = self.right
 			bullet.center_y = self.center_y
-			bullet.change_x = 30*g_scale
+			bullet.change_x = 50*g_scale
 			self.bullet_list.append(bullet)
 
 		
@@ -76,6 +76,28 @@ car1 = arcade.AnimationKeyframe(0, 166, arcade.load_texture('images/car/car.png'
 car2 = arcade.AnimationKeyframe(1, 166, arcade.load_texture('images/arcade/car2.png'))
 e1 = arcade.AnimationKeyframe(0, 166, arcade.load_texture('images/enemies/rounded_yellow.png'))
 e2 = arcade.AnimationKeyframe(1, 166, arcade.load_texture('images/enemies/rounded_yellow2.png'))
+
+#tire_texture = arcade.Texture.create_filled('tire', [4,4], (0,0,0, 128))
+tire_texture = arcade.make_soft_square_texture(8, (0,0,0), center_alpha = 50, outer_alpha = 50)
+
+class TireParticle(arcade.FadeParticle):
+	def __init__(self, p):
+		super().__init__(tire_texture, change_xy = (0,0),
+		lifetime= 2,
+		center_xy=(p.player.left, p.player.center_y-7),
+		end_alpha=100)
+
+class TireParticle2(arcade.FadeParticle):
+	def __init__(self, p):
+		super().__init__(tire_texture, change_xy = (0,0),
+		lifetime= 2,
+		center_xy=(p.player.left, p.player.center_y-17),
+		end_alpha=100)
+
+def new_tire(player):
+	return TireParticle(player)
+def new_tire2(player):
+	return TireParticle2(player)
 
 
 class SandParticle(arcade.FadeParticle):
@@ -111,6 +133,22 @@ class SandEmitter(arcade.Emitter):
             center_xy=(0.0, 0.0),
             emit_controller=arcade.EmitInterval(0.005),
             particle_factory=lambda emitter: SandParticle())
+
+class TireEmitter(arcade.Emitter):
+	def __init__(self, player):
+		super().__init__(
+            center_xy=(0.0, 0.0),
+            emit_controller=arcade.EmitInterval(0.03),
+            particle_factory= new_tire)
+		self.player = player
+
+class TireEmitter2(arcade.Emitter):
+	def __init__(self, player):
+		super().__init__(
+            center_xy=(0.0, 0.0),
+            emit_controller=arcade.EmitInterval(0.03),
+            particle_factory= new_tire2)
+		self.player = player
 
 
 class SnowEmitter(arcade.Emitter):
@@ -194,6 +232,8 @@ class Game(arcade.Window):
 		self.explosion2 = arcade.load_animated_gif('images/boom.gif')
 		self.explosion2.scale = 0.1
 
+		self.tire_emitter = TireEmitter(self.player)
+		self.tire_emitter2 = TireEmitter2(self.player)
 
 	def generate_locations(self):
 		self.way = ['desert', 'desert', 'desert', 'winter', 'swamp']
@@ -219,6 +259,8 @@ class Game(arcade.Window):
 		
 		self.enemies.draw()
 		self.emitter.draw()
+		self.tire_emitter.draw()
+		self.tire_emitter2.draw()
 		self.bullet_list.draw()
 		#self.kilometers_text.draw()
 		#self.location_text.draw()
@@ -241,21 +283,19 @@ class Game(arcade.Window):
 				self.explosion.center_y = SCREEN_HEIGHT/2
 				self.explosion.draw()
 				self.letsgo.draw()
-				
-		
 		
 	def update_player_speed(self):
 		global g_scale, x_start
 		self.player.change_x = 5*g_scale
 		self.player.change_y = 0
 		if self.keys['w'] and not self.keys['s']:
-			self.player.change_y = self.player.speed/2
+			self.player.change_y = self.player.speed/1.5
 		if self.keys['s'] and not self.keys['w']:
-			self.player.change_y = -self.player.speed/2
+			self.player.change_y = -self.player.speed/1.5
 		if self.keys['d'] and not self.keys['a']:
 			self.player.change_x = 5*g_scale + self.player.speed
 		if self.keys['a'] and not self.keys['d']:
-			self.player.change_x = 5*g_scale-self.player.speed
+			self.player.change_x = 5*g_scale - self.player.speed
 		if self.player.left < x_start:
 			self.player.left = x_start
 		elif self.player.right > x_start+SCREEN_WIDTH - 1:
@@ -265,23 +305,19 @@ class Game(arcade.Window):
 		elif self.player.top > SCREEN_HEIGHT - 1:
 			self.player.top = SCREEN_HEIGHT - 1
 
+
 	def on_update(self, delta_time):
 		global x_start, g_scale
 		self.time += delta_time
-		
-		
-		
 		self.camera.use()
-		#if not self.cutscene:
-		#	self.camera.shake(pyglet.math.Vec2(1, 1))
-		#	self.camera.update()
 		if self.time > 13:
 			self.explosion.update()
 			self.explosion.update_animation()
-			
 
 		x_start = self.camera.position[0]
 		self.emitter.update()
+		self.tire_emitter.update()
+		self.tire_emitter2.update()
 		if self.cutscene:
 			if self.time >= 0:
 				self.player_list.update()
@@ -312,6 +348,7 @@ class Game(arcade.Window):
 		else:
 			self.enemies.update()
 			self.player_list.update()
+			self.update_player_speed()
 		for bullet in self.bullet_list:
 			if bullet.left > x_start+SCREEN_WIDTH:
 				bullet.remove_from_sprite_lists()
@@ -326,7 +363,6 @@ class Game(arcade.Window):
 		self.upper_text.position = (self.camera.position[0], SCREEN_HEIGHT-110)
 		self.bottom_text.position = (self.camera.position[0], 35)
 		self.letsgo.position = (self.camera.position[0], SCREEN_HEIGHT/2-120)
-		#self.kilometers_text.text = str(self.enemy1.change_x)
 		self.location_text.position = (x_start + 25, SCREEN_HEIGHT-50)
 		if self.location_text.text != self.location:
 			self.location_text.text = self.location
@@ -336,7 +372,6 @@ class Game(arcade.Window):
 				self.emitter = SnowEmitter()
 			elif self.location == 'swamp':
 				self.emitter = RainEmitter()
-		#self.location_text.text = str(self.enemy1.shoot)
 
 	def on_key_press(self, key, modifiers):
 		if key == arcade.key.W:
@@ -347,8 +382,6 @@ class Game(arcade.Window):
 			self.keys['d'] = True
 		if key == arcade.key.A:
 			self.keys['a'] = True
-		if not self.cutscene:
-			self.update_player_speed()
 		
 	def on_key_release(self, key, modifiers):
 		if key == arcade.key.W:
@@ -359,9 +392,7 @@ class Game(arcade.Window):
 			self.keys['d'] = False
 		if key == arcade.key.A:
 			self.keys['a'] = False
-		if not self.cutscene:
-			self.update_player_speed()
-
+		
 
 game = Game()
 game.setup()
