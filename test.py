@@ -1,198 +1,178 @@
+"""
+Show how to have enemies shoot bullets at regular intervals.
+
+If Python and Arcade are installed, this example can be run from the command line with:
+python -m arcade.examples.sprite_bullets_periodic
+"""
 import arcade
-import arcade.gui
+
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+SCREEN_TITLE = "Sprites and Periodic Bullets Example"
 
 
-class MyView(arcade.View):
-    def __init__(self, my_window: arcade.Window):
-        super().__init__(my_window)
 
-        self.media_player = None
-        self.paused = True
-        self.songs = [":resources:music/funkyrobot.mp3",
-                      ":resources:music/1918.mp3"]
-        self.cur_song_index = 0
+class EnemySprite(arcade.Sprite):
 
-        self.my_music = arcade.load_sound(self.songs[self.cur_song_index])
+    """ Enemy ship class that tracks how long it has been since firing. """
 
-        # This creates a "manager" for all our UI elements
-        self.ui_manager = arcade.gui.UIManager(self.window)
 
-        box = arcade.gui.UIBoxLayout(vertical=False)
 
-        # --- Start button
-        normal_texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/"
-                                             "sound_off.png")
-        hover_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/"
-                                            "sound_off.png")
-        press_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/"
-                                            "sound_off.png")
+    def __init__(self, image_file, scale, bullet_list, time_between_firing):
 
-        # Create our button
-        self.start_button = arcade.gui.UITextureButton(
-            texture=normal_texture,
-            texture_hovered=hover_texture,
-            texture_pressed=press_texture,
-        )
+        """ Set up the enemy """
 
-        # Map that button's on_click method to this view's on_button_click method.
-        self.start_button.on_click = self.start_button_clicked  # type: ignore
+        super().__init__(image_file, scale)
 
-        # Add in our element.
-        box.add(self.start_button)
 
-        # --- Down button
-        press_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/down.png")
-        normal_texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/down.png")
-        hover_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/down.png")
 
-        # Create our button
-        self.down_button = arcade.gui.UITextureButton(
-            texture=normal_texture,
-            texture_hovered=hover_texture,
-            texture_pressed=press_texture,
-        )
+        # How long has it been since we last fired?
 
-        # Map that button's on_click method to this view's on_button_click method.
-        self.down_button.on_click = self.volume_down  # type: ignore
-        self.down_button.scale(0.5)
+        self.time_since_last_firing = 0.0
 
-        # Add in our element.
-        box.add(self.down_button)
 
-        # --- Up button
-        press_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/up.png")
-        normal_texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/up.png")
-        hover_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/up.png")
 
-        # Create our button
-        self.up_button = arcade.gui.UITextureButton(
-            texture=normal_texture,
-            texture_hovered=hover_texture,
-            texture_pressed=press_texture,
-        )
+        # How often do we fire?
 
-        # Map that button's on_click method to this view's on_button_click method.
-        self.up_button.on_click = self.volume_up  # type: ignore
-        self.up_button.scale(0.5)
+        self.time_between_firing = time_between_firing
 
-        # Add in our element.
-        box.add(self.up_button)
 
-        # --- Right button
-        press_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/right.png")
-        normal_texture = arcade.load_texture(":resources:onscreen_controls/flat_dark/right.png")
-        hover_texture = arcade.load_texture(":resources:onscreen_controls/shaded_dark/right.png")
 
-        # Create our button
-        self.right_button = arcade.gui.UITextureButton(
-            texture=normal_texture,
-            texture_hovered=hover_texture,
-            texture_pressed=press_texture,
-        )
+        # When we fire, what list tracks the bullets?
 
-        # Map that button's on_click method to this view's on_button_click method.
-        self.right_button.on_click = self.forward  # type: ignore
-        self.right_button.scale(0.5)
+        self.bullet_list = bullet_list
 
-        # Add in our element.
-        box.add(self.right_button)
 
-        # Place buttons in the center of the screen using an UIAnchorWidget with default values
-        self.ui_manager.add(arcade.gui.UIAnchorWidget(child=box))
 
-    def music_over(self):
-        self.media_player.pop_handlers()
-        self.media_player = None
-        self.sound_button_off()
-        self.cur_song_index += 1
-        if self.cur_song_index >= len(self.songs):
-            self.cur_song_index = 0
-        self.my_music = arcade.load_sound(self.songs[self.cur_song_index])
-        self.media_player = self.my_music.play()
-        self.media_player.push_handlers(on_eos=self.music_over)
+    def on_update(self, delta_time: float = 1 / 60):
 
-    def volume_down(self, *_):
-        if self.media_player and self.media_player.volume > 0.2:
-            self.media_player.volume -= 0.2
+        """ Update this sprite. """
 
-    def volume_up(self, *_):
-        if self.media_player and self.media_player.volume < 1.0:
-            self.media_player.volume += 0.2
 
-    def forward(self, *_):
-        skip_time = 10
 
-        if self.media_player and self.media_player.time < self.my_music.get_length() - skip_time:
-            self.media_player.seek(self.media_player.time + 10)
+        # Track time since we last fired
 
-    def sound_button_on(self):
-        self.start_button.texture_pressed = \
-            arcade.load_texture(":resources:onscreen_controls/shaded_dark/sound_on.png")
-        self.start_button.texture = \
-            arcade.load_texture(":resources:onscreen_controls/flat_dark/sound_on.png")
-        self.start_button.texture_hovered = \
-            arcade.load_texture(":resources:onscreen_controls/shaded_dark/sound_on.png")
+        self.time_since_last_firing += delta_time
 
-    def sound_button_off(self):
-        self.start_button.texture_pressed = \
-            arcade.load_texture(":resources:onscreen_controls/shaded_dark/sound_off.png")
-        self.start_button.texture = \
-            arcade.load_texture(":resources:onscreen_controls/flat_dark/sound_off.png")
-        self.start_button.texture_hovered = \
-            arcade.load_texture(":resources:onscreen_controls/shaded_dark/sound_off.png")
+        # If we are past the firing time, then fire
 
-    def start_button_clicked(self, *_):
-        self.paused = False
-        if not self.media_player:
-            # Play button has been hit, and we need to start playing from the beginning.
-            self.media_player = self.my_music.play()
-            self.media_player.push_handlers(on_eos=self.music_over)
-            self.sound_button_on()
-        elif not self.media_player.playing:
-            # Play button hit, and we need to un-pause our playing.
-            self.media_player.play()
-            self.sound_button_on()
-        elif self.media_player.playing:
-            # We are playing music, so pause.
-            self.media_player.pause()
-            self.sound_button_off()
+        if self.time_since_last_firing >= self.time_between_firing:
+
+
+
+            # Reset timer
+
+            self.time_since_last_firing = 0
+
+            # Fire the bullet
+
+            bullet = arcade.Sprite(":resources:images/space_shooter/laserBlue01.png")
+
+            bullet.center_x = self.center_x
+
+            bullet.angle = -90
+
+            bullet.top = self.bottom
+
+            bullet.change_y = -2
+
+            self.bullet_list.append(bullet)
+
+
+
+class MyGame(arcade.Window):
+    """ Main application class """
+
+    def __init__(self):
+        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
+
+        arcade.set_background_color(arcade.color.BLACK)
+
+        self.player = None
+        self.player_list = None
+        self.enemy_list = None
+        self.bullet_list = None
+
+    def setup(self):
+        """ Setup the variables for the game. """
+
+        self.player_list = arcade.SpriteList()
+        self.enemy_list = arcade.SpriteList()
+        self.bullet_list = arcade.SpriteList()
+
+        # Add player ship
+        self.player = arcade.Sprite(":resources:images/space_shooter/playerShip1_orange.png", 0.5)
+        self.player_list.append(self.player)
+
+        # Add top-left enemy ship
+
+        enemy = EnemySprite(":resources:images/space_shooter/playerShip1_green.png",
+
+                            scale=0.5,
+
+                            bullet_list=self.bullet_list,
+
+                            time_between_firing=2.0)
+
+        enemy.center_x = 120
+        enemy.center_y = SCREEN_HEIGHT - enemy.height
+        enemy.angle = 180
+        self.enemy_list.append(enemy)
+
+        # Add top-right enemy ship
+
+        enemy = EnemySprite(":resources:images/space_shooter/playerShip1_green.png",
+
+                            scale=0.5,
+
+                            bullet_list=self.bullet_list,
+
+                            time_between_firing=1.0)
+
+        enemy.center_x = SCREEN_WIDTH - 120
+        enemy.center_y = SCREEN_HEIGHT - enemy.height
+        enemy.angle = 180
+        self.enemy_list.append(enemy)
 
     def on_draw(self):
+        """Render the screen. """
+
         self.clear()
 
-        # This draws our UI elements
-        self.ui_manager.draw()
-        arcade.draw_text("Music Demo",
-                         start_x=0, start_y=self.window.height - 55,
-                         width=self.window.width,
-                         font_size=40,
-                         align="center",
-                         color=arcade.color.BLACK)
+        self.enemy_list.draw()
+        self.bullet_list.draw()
+        self.player_list.draw()
 
-        if self.media_player:
-            seconds = self.media_player.time
-            minutes = int(seconds // 60)
-            seconds = int(seconds % 60)
-            arcade.draw_text(f"Time: {minutes}:{seconds:02}",
-                             start_x=10, start_y=10, color=arcade.color.BLACK, font_size=24)
-            volume = self.media_player.volume
-            arcade.draw_text(f"Volume: {volume:3.1f}",
-                             start_x=10, start_y=50, color=arcade.color.BLACK, font_size=24)
+    def on_update(self, delta_time):
+        """ All the logic to move, and the game logic goes here. """
 
-    def on_show_view(self):
-        arcade.set_background_color(arcade.color.ALMOND)
 
-        # Registers handlers for GUI button clicks, etc.
-        # We don't really use them in this example.
-        self.ui_manager.enable()
+        # Call on_update for each enemy in  the list
 
-    def on_hide_view(self):
-        # This unregisters the manager's UI handlers,
-        # Handlers respond to GUI button clicks, etc.
-        self.ui_manager.disable()
+        self.enemy_list.on_update(delta_time)
+
+
+        # Get rid of the bullet when it flies off-screen
+        for bullet in self.bullet_list:
+            if bullet.top < 0:
+                bullet.remove_from_sprite_lists()
+
+        self.bullet_list.update()
+
+    def on_mouse_motion(self, x, y, delta_x, delta_y):
+        """
+        Called whenever the mouse moves.
+        """
+        self.player.center_x = x
+        self.player.center_y = 20
+
+
+def main():
+    """ Run the game """
+    window = MyGame()
+    window.setup()
+    arcade.run()
 
 
 if __name__ == "__main__":
-    window = arcade.Window(title="Arcade Music Control Demo")
-    window.show_view(MyView(window))
-    arcade.run()
+    main()

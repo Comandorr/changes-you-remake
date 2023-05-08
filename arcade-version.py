@@ -15,33 +15,68 @@ class Player(arcade.AnimatedTimeBasedSprite):
 		self.shadow = arcade.Sprite('images/other/shadow.png', scale=2.5*g_scale)
 		self.frames = [car1, car2]
 		self.speed = 4*g_scale
-		self.center_x = SCREEN_WIDTH/6
+		self.center_x = -self.width
 		self.center_y = SCREEN_HEIGHT/2
-		self.change_x = 7*g_scale
+		self.change_x = 8*g_scale
 
 	def update(self):
 		global x_start
 		self.center_x += self.change_x
 		self.center_y += self.change_y
 
-		if self.left < x_start:
-			self.left = x_start
-		elif self.right > x_start+SCREEN_WIDTH - 1:
-			self.right = x_start+SCREEN_WIDTH - 1
-		if self.bottom < 0:
-			self.bottom = 0
-		elif self.top > SCREEN_HEIGHT - 1:
-			self.top = SCREEN_HEIGHT - 1
+		
 		self.shadow.center_x = self.center_x
-		self.shadow.center_y = self.center_y-7
+		self.shadow.center_y = self.center_y-self.height/3
 		self.update_animation()
 		
+
+class Enemy(arcade.AnimatedTimeBasedSprite):
+	def __init__(self, filename, bullet_list):
+		global g_scale
+		self.bullet_list = bullet_list
+		super().__init__(filename, scale = g_scale)
+	def setup(self, center_y):
+		global SCREEN_WIDTH, SCREEN_HEIGHT, g_scale
+		self.shadow = arcade.Sprite('images/other/shadow.png', scale=2.5*g_scale)
+		self.frames = [e1, e2]
+		self.speed = 4
+		self.center_x = -self.width
+		self.center_y = center_y
+		self.change_x = 7.5*g_scale
+		self.time_since_last_firing = 0.0
+		self.time_between_firing = 0.2
+		self.shoot = False
+
+	def update(self, delta_time: float = 1 / 60):
+		global x_start, g_scale
+		self.speed *= g_scale
+		self.center_x += self.change_x
+		self.center_y += self.change_y
+
+		self.shadow.center_x = self.center_x
+		self.shadow.center_y = self.center_y-self.height/3
+		self.update_animation()
+		self.time_since_last_firing += delta_time
+		
+		if self.shoot and self.time_since_last_firing >= self.time_between_firing:
+			self.time_since_last_firing = 0
+			bullet = arcade.Sprite("images/other/bullet.png", scale = g_scale*2)
+			bullet.center_x = self.right
+			bullet.center_y = self.center_y
+			bullet.change_x = 30*g_scale
+			self.bullet_list.append(bullet)
+
+		
+
 
 sand_texture = arcade.Texture.create_filled('sand', [16,4], (255, 127, 39))
 rain_texture = arcade.Texture.create_filled('rain', [6,24], (0, 162, 232))
 snow_texture = arcade.Texture.create_filled('snow', [16,4], (173, 173, 173))
+
 car1 = arcade.AnimationKeyframe(0, 166, arcade.load_texture('images/car/car.png'))
 car2 = arcade.AnimationKeyframe(1, 166, arcade.load_texture('images/arcade/car2.png'))
+e1 = arcade.AnimationKeyframe(0, 166, arcade.load_texture('images/enemies/rounded_yellow.png'))
+e2 = arcade.AnimationKeyframe(1, 166, arcade.load_texture('images/enemies/rounded_yellow2.png'))
 
 
 class SandParticle(arcade.FadeParticle):
@@ -98,7 +133,7 @@ class RainEmitter(arcade.Emitter):
 class Game(arcade.Window):
 	def __init__(self):
 		global SCREEN_WIDTH, SCREEN_HEIGHT
-		super().__init__(fullscreen=True)
+		super().__init__(fullscreen=True, vsync=True)
 		#super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT)
 		SCREEN_WIDTH, SCREEN_HEIGHT =  arcade.get_display_size()
 		self.player = None
@@ -111,6 +146,8 @@ class Game(arcade.Window):
 
 	def setup(self):
 		global g_scale
+		self.cutscene = True
+
 		self.keys = {'w':False, 's':False, 'a':False, 'd':False}
 		self.player_list = arcade.SpriteList()
 		self.player = Player('images/car/car.png')
@@ -128,18 +165,42 @@ class Game(arcade.Window):
 		self.camera.position = pyglet.math.Vec2(SCREEN_WIDTH/2, 0)
 		self.kilometers_text = arcade.Text(str(self.camera.position[0]), SCREEN_WIDTH, SCREEN_HEIGHT-100, (0,0,0), 20*g_scale)
 		self.location_text = arcade.Text(str(self.location), 50, SCREEN_HEIGHT-100, (0,0,0), 20*g_scale)
+		arcade.load_font('F77 Minecraft.ttf')
+		self.upper_text = arcade.Text("LET'S "*10, self.camera.position[0]+SCREEN_WIDTH/4, SCREEN_HEIGHT-100, (255, 255, 255), 40*g_scale, font_name = 'F77 Minecraft')
+		self.bottom_text = arcade.Text("GO "*10, self.camera.position[0]+SCREEN_WIDTH/4, 100, (255, 255, 255), 40*g_scale, font_name = 'F77 Minecraft')
+		self.letsgo = arcade.Text("LET'S GO", self.camera.position[0]+SCREEN_WIDTH/4, 100, (0,0,0), 162*g_scale, font_name = 'F77 Minecraft')
 
 		self.music = arcade.Sound('sounds/the_sound.mp3')
 		self.media_player = self.music.play(loop=True)
-		self.music.set_volume(0, self.media_player)
+		self.music.set_volume(1, self.media_player)
 		# the_sound
 		# paint
+		self.bullet_list = arcade.SpriteList()
+		self.enemies = arcade.SpriteList()
+		self.enemy1 = Enemy('images/enemies/rounded_yellow.png', self.bullet_list)
+		self.enemy1.setup(SCREEN_HEIGHT/4)
+		self.enemy2 = Enemy('images/enemies/rounded_yellow.png', self.bullet_list)
+		self.enemy2.setup(SCREEN_HEIGHT/4*3)
+		self.enemies.append(self.enemy1.shadow)
+		self.enemies.append(self.enemy1)
+		self.enemies.append(self.enemy2.shadow)
+		self.enemies.append(self.enemy2)
+		
+		self.black_texture = arcade.Texture.create_filled('black', [SCREEN_WIDTH, SCREEN_HEIGHT], (0, 0, 0))
+		self.black_texture.alpha = 255
+		self.time = 0
+
+		self.explosion = arcade.load_animated_gif('images/boom.gif')
+		self.explosion.scale = 0.8
+		self.explosion2 = arcade.load_animated_gif('images/boom.gif')
+		self.explosion2.scale = 0.1
+
 
 	def generate_locations(self):
-		self.way = ['desert', 'desert', 'winter', 'swamp']
+		self.way = ['desert', 'desert', 'desert', 'winter', 'swamp']
 		for i in range(len(self.way)):
 			w = self.way[i]
-			for x in range((i*7500), 7500 + (i*7500), 64):
+			for x in range((i*15000), 15000 + (i*15000), 64):
 				for y in range(32, SCREEN_HEIGHT+31, 64):
 					if w == 'desert':
 						image = 'images/tiles/sand.png'
@@ -153,15 +214,39 @@ class Game(arcade.Window):
 
 	def on_draw(self):
 		self.clear()
+		
 		self.map.draw()
 		self.player_list.draw()
+		
+		self.enemies.draw()
 		self.emitter.draw()
-		self.kilometers_text.draw()
-		self.location_text.draw()
+		self.bullet_list.draw()
+		#self.kilometers_text.draw()
+		#self.location_text.draw()
+		if self.cutscene:
+			self.black_texture.draw_sized(self.camera.position[0] + SCREEN_WIDTH/2, SCREEN_HEIGHT/2, 
+				SCREEN_WIDTH, SCREEN_HEIGHT, alpha = self.black_texture.alpha)
+			if self.black_texture.alpha > 0.5:
+				self.black_texture.alpha -= 0.5
+			
+			self.black_texture.draw_sized(self.camera.position[0] + SCREEN_WIDTH/2, SCREEN_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT/4)
+			self.black_texture.draw_sized(self.camera.position[0] + SCREEN_WIDTH/2, 0, SCREEN_WIDTH, SCREEN_HEIGHT/4)
+			if self.time > 13:
+				self.upper_text.draw()
+				self.letsgo.color = (255, 255, 255)
+				self.letsgo.draw()
+			if self.time > 13.1:
+				self.bottom_text.draw()
+				self.letsgo.color = (0,0,0)
+				self.explosion.center_x = self.camera.position[0]+SCREEN_WIDTH/2
+				self.explosion.center_y = SCREEN_HEIGHT/2
+				self.explosion.draw()
+				self.letsgo.draw()
+				
 		
 		
 	def update_player_speed(self):
-		global g_scale
+		global g_scale, x_start
 		self.player.change_x = 7*g_scale
 		self.player.change_y = 0
 		if self.keys['w'] and not self.keys['s']:
@@ -169,21 +254,80 @@ class Game(arcade.Window):
 		if self.keys['s'] and not self.keys['w']:
 			self.player.change_y = -self.player.speed/2
 		if self.keys['d'] and not self.keys['a']:
-			self.player.change_x = 7 + self.player.speed
+			self.player.change_x = 7*g_scale + self.player.speed
 		if self.keys['a'] and not self.keys['d']:
-			self.player.change_x = 7-self.player.speed
+			self.player.change_x = 7*g_scale-self.player.speed
+		if self.player.left < x_start:
+			self.player.left = x_start
+		elif self.player.right > x_start+SCREEN_WIDTH - 1:
+			self.player.right = x_start+SCREEN_WIDTH - 1
+		if self.player.bottom < 0:
+			self.player.bottom = 0
+		elif self.player.top > SCREEN_HEIGHT - 1:
+			self.player.top = SCREEN_HEIGHT - 1
 
 	def on_update(self, delta_time):
 		global x_start, g_scale
-		self.camera.use()
-		x_start = self.camera.position[0]
-		self.player_list.update()
-		self.emitter.update()
-		self.camera.goal_position = self.camera.position + pyglet.math.Vec2(7*g_scale, 0)
+		self.time += delta_time
 		
-		self.location = self.way[int(x_start//7500)]
-		self.kilometers_text.position = (x_start + SCREEN_WIDTH-100, SCREEN_HEIGHT-50)
+		
+		
+		self.camera.use()
+		#if not self.cutscene:
+		#	self.camera.shake(pyglet.math.Vec2(1, 1))
+		#	self.camera.update()
+		if self.time > 13:
+			self.explosion.update()
+			self.explosion.update_animation()
+			
+
+		x_start = self.camera.position[0]
+		self.emitter.update()
+		if self.cutscene:
+			if self.time >= 0:
+				self.player_list.update()
+				if self.player.center_x >= x_start+SCREEN_WIDTH/3:
+					self.player.center_x = x_start+SCREEN_WIDTH/3
+					self.player.change_x = 7*g_scale
+			else:
+				self.player.center_x = x_start-self.player.width
+
+			if self.time < 6.5:
+				self.enemy1.center_x = x_start-self.enemy1.width
+				self.enemy2.center_x = x_start-self.enemy2.width
+			if self.time >= 6.5 and self.time < 13.5:
+				self.enemies.update()
+				if self.player.center_x - self.enemy1.center_x <= 250*g_scale:
+					self.enemy1.change_x = 7*g_scale
+					self.enemy2.change_x = 7*g_scale
+			elif self.time >= 13.5:
+				self.enemies.update()
+				for e in self.enemies:
+					e.shoot = True
+				self.enemy1.change_x = 8*g_scale
+				self.enemy2.change_x = 6.5*g_scale
+				self.enemy1.change_y = 1.5*g_scale
+				self.enemy2.change_y = -1.25*g_scale
+				self.cutscene = False
+			
+		else:
+			self.enemies.update()
+			self.player_list.update()
+		for bullet in self.bullet_list:
+			if bullet.left > x_start+SCREEN_WIDTH:
+				bullet.remove_from_sprite_lists()
+		self.bullet_list.update()
+		
+		self.camera.goal_position = self.camera.position + pyglet.math.Vec2(7*g_scale, 0)
+
+		self.location = self.way[int(x_start//15000)]
+		self.kilometers_text.position = (x_start + SCREEN_WIDTH-150, SCREEN_HEIGHT-50)
 		self.kilometers_text.text = str(int(x_start//10))
+		self.kilometers_text.text = str(int(self.enemy1.center_x-x_start))
+		self.upper_text.position = (self.camera.position[0], SCREEN_HEIGHT-110)
+		self.bottom_text.position = (self.camera.position[0], 35)
+		self.letsgo.position = (self.camera.position[0], SCREEN_HEIGHT/2-120)
+		#self.kilometers_text.text = str(self.enemy1.change_x)
 		self.location_text.position = (x_start + 25, SCREEN_HEIGHT-50)
 		if self.location_text.text != self.location:
 			self.location_text.text = self.location
@@ -193,6 +337,7 @@ class Game(arcade.Window):
 				self.emitter = SnowEmitter()
 			elif self.location == 'swamp':
 				self.emitter = RainEmitter()
+		#self.location_text.text = str(self.enemy1.shoot)
 
 	def on_key_press(self, key, modifiers):
 		if key == arcade.key.W:
@@ -203,7 +348,8 @@ class Game(arcade.Window):
 			self.keys['d'] = True
 		if key == arcade.key.A:
 			self.keys['a'] = True
-		self.update_player_speed()
+		if not self.cutscene:
+			self.update_player_speed()
 		
 	def on_key_release(self, key, modifiers):
 		if key == arcade.key.W:
@@ -214,7 +360,8 @@ class Game(arcade.Window):
 			self.keys['d'] = False
 		if key == arcade.key.A:
 			self.keys['a'] = False
-		self.update_player_speed()
+		if not self.cutscene:
+			self.update_player_speed()
 
 
 game = Game()
