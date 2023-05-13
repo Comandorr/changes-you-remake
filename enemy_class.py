@@ -10,14 +10,15 @@ class Enemy(Car):
 		self.shoot = False
 		self.change_x = 5.5*g_scale
 		self.center_y = center_y
+		self.g_scale = g_scale
 	
 	def update(self, delta_time: float = 1/60):
 		super().update()
 		self.time_since_last_firing += delta_time
 		if self.shoot and self.time_since_last_firing >= self.time_between_firing:
 			self.time_since_last_firing = 0
-			bullet = arcade.Sprite("images/other/bullet.png", scale = g_scale*1.5)
+			bullet = arcade.Sprite("images/other/bullet.png", scale = self.g_scale*1.5)
 			bullet.center_x = self.right
 			bullet.center_y = self.center_y
-			bullet.change_x = 50*g_scale
+			bullet.change_x = 50*self.g_scale
 			self.bullet_list.append(bullet)
